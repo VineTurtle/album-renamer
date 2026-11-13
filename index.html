@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>图册批量重命名</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo"></span>
+    <span class="brand-name">图册批量重命名</span>
+  </div>
+
+  <button class="folder-chip" id="folderChip" title="点击选择文件夹">
+    <span class="ico">📁</span><span id="folderLabel">未选择文件夹</span>
+  </button>
+  <button class="btn ghost icon" id="btnReveal" title="在资源管理器中打开">↗</button>
+
+  <div class="spacer"></div>
+
+  <button class="btn ghost" id="btnReload" title="重新读取当前文件夹">刷新</button>
+  <button class="btn ghost" id="btnUndo" title="撤销最近一次执行">撤销上次</button>
+  <button class="btn ghost" id="btnCsv" title="导出重命名对照表">导出清单</button>
+  <button class="btn ghost icon" id="btnTheme" title="切换主题">◐</button>
+  <button class="btn primary" id="btnExec">执行重命名 <span class="pill" id="execCount">0</span></button>
+</header>
+
+<div class="layout">
+  <aside class="side">
+
+    <section class="panel">
+      <div class="panel-head">
+        <span>命名模板</span>
+        <span class="hint">点击段编辑 · 拖拽排序</span>
+      </div>
+
+      <div class="tabs-mini" id="tplModeTabs">
+        <button data-mode="seg" class="active">分段</button>
+        <button data-mode="raw">语法</button>
+      </div>
+
+      <div class="tpl-tabs" id="tplTabs"></div>
+
+      <div id="segView">
+        <div class="seg-list" id="segList"></div>
+        <div class="seg-add" id="segAdd">
+          <button data-add="text">+ 文本</button>
+          <button data-add="sep">+ 分隔符</button>
+          <button data-add="num">+ 序号</button>
+          <button data-add="orig">+ 原名</button>
+          <button data-add="digits">+ 原数字</button>
+          <button data-add="date">+ 日期</button>
+          <button data-add="folder">+ 文件夹</button>
+        </div>
+        <div class="sep-quick">
+          <span>分隔符</span>
+          <select id="sepQuick">
+            <option value="_">_</option>
+            <option value="-">-</option>
+            <option value=".">.</option>
+            <option value=" ">空格</option>
+            <option value="">无</option>
+          </select>
+        </div>
+        <div class="seg-editor" id="segEditor"></div>
+      </div>
+
+      <div id="rawView" hidden>
+        <textarea id="rawInput" spellcheck="false" placeholder="aaa_bbb_{num:4}_ccc"></textarea>
+        <div class="hint code-hint">{num} {num:4} {orig} {digits} {date} {date:YYYY-MM-DD} {folder}</div>
+      </div>
+
+      <div class="sample">
+        <span>示例</span>
+        <code id="sampleName">—</code>
+        <span class="usage" id="tplUsage"></span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><span>编号规则</span><span class="hint">每个模板独立计数</span></div>
+      <div class="grid2">
+        <label class="fld">起始值<input type="number" id="numStart" min="0" step="1" value="1"></label>
+        <label class="fld">步长<input type="number" id="numStep" min="1" step="1" value="1"></label>
+        <label class="fld">补零位数<input type="number" id="numPad" min="0" max="10" step="1" value="4"></label>
+        <label class="fld">样式
+          <select id="numStyle">
+            <option value="dec">1, 2, 3</option>
+            <option value="alpha">a, b, c</option>
+            <option value="ALPHA">A, B, C</option>
+            <option value="cn">一, 二, 三</option>
+          </select>
+        </label>
+        <label class="fld span2">序号来源
+          <select id="numSource">
+            <option value="seq">按当前排序顺序（推荐）</option>
+            <option value="digits">提取原文件名里的数字</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><span>显示与排序</span></div>
+      <div class="grid2">
+        <label class="fld span2">排序
+          <select id="sortSelect">
+            <option value="name-asc">文件名（自然排序）</option>
+            <option value="name-desc">文件名（倒序）</option>
+            <option value="mtime-asc">修改时间（旧→新）</option>
+            <option value="mtime-desc">修改时间（新→旧）</option>
+            <option value="size-asc">文件大小（小→大）</option>
+            <option value="size-desc">文件大小（大→小）</option>
+            <option value="manual">手动顺序（拖拽调整，重新导入后重置）</option>
+          </select>
+        </label>
+        <label class="fld span2">缩略图大小
+          <input type="range" id="thumbRange" min="120" max="320" step="20" value="180">
+        </label>
+        <label class="check"><input type="checkbox" id="onlyImages" checked> 仅图片文件</label>
+        <label class="check"><input type="checkbox" id="lowerExt"> 扩展名统一小写</label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><span>输出方式</span></div>
+      <div class="radios">
+        <label><input type="radio" name="mode" value="rename" checked><span>原地重命名<small>两阶段执行，安全可撤销</small></span></label>
+        <label><input type="radio" name="mode" value="copy"><span>复制到新文件夹<small>原件完全不动</small></span></label>
+        <label><input type="radio" name="mode" value="move"><span>移动到新文件夹<small>复制成功后删除原件</small></span></label>
+      </div>
+      <div class="dest-row" id="destRow" hidden>
+        <input id="destInput" placeholder="目标文件夹路径">
+        <button class="btn ghost" id="btnPickDest">浏览</button>
+      </div>
+    </section>
+
+    <section class="panel tips">
+      <div class="panel-head"><span>快捷键</span></div>
+      <div class="kv"><kbd>Ctrl</kbd>+<kbd>A</kbd><span>全选</span></div>
+      <div class="kv"><kbd>Shift</kbd> / <kbd>Ctrl</kbd> + 点击<span>连选 / 加选</span></div>
+      <div class="kv"><kbd>双击</kbd><span>查看原图</span></div>
+      <div class="kv"><kbd>F2</kbd><span>给选中项命名</span></div>
+      <div class="kv"><kbd>Esc</kbd><span>取消选择 / 关闭</span></div>
+    </section>
+
+  </aside>
+
+  <main class="main">
+    <div class="toolbar">
+      <div class="sel-info"><b id="selCount">0</b><span>已选</span></div>
+      <div class="sel-actions">
+        <label class="mini">套用
+          <select id="selTpl"></select>
+        </label>
+        <button class="btn ghost sm" id="selCustom">自定义名</button>
+        <button class="btn ghost sm" id="selExclude">排除 / 恢复</button>
+        <button class="btn ghost sm" id="selRenum">从此重新编号</button>
+        <button class="btn ghost sm" id="selClear">清除选择</button>
+      </div>
+      <div class="spacer"></div>
+      <input class="search" id="search" placeholder="搜索文件名…">
+      <button class="btn ghost sm" id="btnSelectAll">全选</button>
+      <button class="btn ghost sm" id="btnInvert">反选</button>
+    </div>
+
+    <div class="grid-wrap" id="gridWrap">
+      <div class="empty" id="empty">
+        <div class="empty-icon">🗂️</div>
+        <h2>还没有导入文件夹</h2>
+        <p>选择存放扫描图片的文件夹，图片会按顺序展示在这里。</p>
+        <button class="btn primary" id="btnEmptyPick">选择文件夹</button>
+        <p class="empty-note">也可以把文件夹拖到 <b>启动.bat</b> 上直接打开</p>
+      </div>
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <div class="statusbar" id="statusbar">
+      <span id="statTotal">共 0 张</span>
+      <span class="dot">·</span><span id="statNumbered">参与编号 0</span>
+      <span class="dot">·</span><span id="statLocked">锁定 0</span>
+      <span class="dot">·</span><span id="statExcluded">排除 0</span>
+      <span class="spacer"></span>
+      <span id="statConflict" class="ok">无冲突</span>
+    </div>
+  </main>
+</div>
+
+<!-- 大图查看 -->
+<div class="viewer" id="viewer">
+  <div class="viewer-top">
+    <div class="viewer-title">
+      <div class="vname" id="vName"></div>
+      <div class="vinfo" id="vInfo"></div>
+    </div>
+    <div class="viewer-tools">
+      <button class="vbtn" id="vZoomOut" title="缩小">−</button>
+      <span class="vzoom" id="vZoom">100%</span>
+      <button class="vbtn" id="vZoomIn" title="放大">＋</button>
+      <button class="vbtn" id="vFit" title="适应窗口">适应</button>
+      <button class="vbtn close" id="vClose" title="关闭">✕</button>
+    </div>
+  </div>
+  <div class="viewer-stage" id="vStage">
+    <img id="vImg" alt="" draggable="false">
+    <div class="vloading" id="vLoading">加载中…</div>
+  </div>
+  <button class="vnav prev" id="vPrev">‹</button>
+  <button class="vnav next" id="vNext">›</button>
+  <div class="viewer-foot" id="vFoot"></div>
+</div>
+
+<!-- 文件夹选择 -->
+<div class="modal" id="picker">
+  <div class="modal-box picker-box">
+    <div class="modal-head"><b>选择文件夹</b><button class="x" data-close="picker">✕</button></div>
+    <div class="picker-top">
+      <div class="drives" id="drives"></div>
+      <div class="pathrow">
+        <input id="pickerPath" placeholder="粘贴路径后回车，例如 C:\Users\你\Pictures\图册">
+        <button class="btn ghost" id="pickerGo">转到</button>
+      </div>
+      <div class="picker-filterrow">
+        <input id="pickerFilter" placeholder="过滤子文件夹…（Esc 清空）" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+    <div class="picker-list" id="pickerList"></div>
+    <div class="modal-foot">
+      <span class="hint" id="pickerHint"></span>
+      <button class="btn ghost" data-close="picker">取消</button>
+      <button class="btn primary" id="pickerOk">使用此文件夹</button>
+    </div>
+  </div>
+</div>
+
+<!-- 通用对话框 -->
+<div class="modal" id="dlg">
+  <div class="modal-box" id="dlgBox">
+    <div class="modal-head"><b id="dlgTitle"></b><button class="x" data-close="dlg">✕</button></div>
+    <div class="modal-body" id="dlgBody"></div>
+    <div class="modal-foot" id="dlgFoot"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
