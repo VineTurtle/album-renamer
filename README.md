@@ -264,3 +264,10 @@ aaa_bbb_{num:4}_ccc
 - 個別固定：1 枚だけ任意の名前を付け、ページ番号を消費させない
 - フォルダ選択は前回の位置を記憶、フィルタ入力で絞り込み可能
 - 直前のリネームを取り消し
+---
+
+## 许可 / License
+
+本项目以 [MIT](./LICENSE) 许可证发布。
+
+Licensed under the [MIT License](./LICENSE).
